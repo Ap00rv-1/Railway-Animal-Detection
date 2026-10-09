@@ -1,0 +1,28 @@
+# --- Secrets (never commit these) ---
+.env
+firmware/railway_node/config.h
+
+# --- Local databases ---
+server/control_room.db
+*.db
+
+# --- Model weights (large binary files) ---
+server/models/*.pt
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Logs ---
+*.log

@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DetectionEvent",
+  "description": "Payload sent by an edge node (ESP32-CAM + PIR + geophone) to the central server whenever its sensors fire or on a periodic heartbeat.",
+  "type": "object",
+  "required": ["node_id", "timestamp", "location_km", "event_type"],
+  "properties": {
+    "node_id": {
+      "type": "string",
+      "description": "Unique ID of the edge node, e.g. NODE-03",
+      "example": "NODE-03"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 UTC timestamp of detection, generated on the node"
+    },
+    "location_km": {
+      "type": "number",
+      "description": "Track chainage / km marker where this node is installed"
+    },
+    "event_type": {
+      "type": "string",
+      "enum": ["detection", "heartbeat"],
+      "description": "'detection' when an animal is sensed, 'heartbeat' for periodic no-animal keepalive so the server knows the node is alive"
+    },
+    "sensors": {
+      "type": "object",
+      "description": "Raw fusion inputs from the three sensor modalities on this node",
+      "properties": {
+        "camera": {
+          "type": "object",
+          "properties": {
+            "detected": { "type": "boolean" },
+            "animal_type": {
+              "type": "string",
+              "description": "Class label from the YOLOv8-nano model",
+              "example": "elephant"
+            },
+            "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+            "bbox": {
+              "type": "array",
+              "items": { "type": "number" },
+              "description": "[x1, y1, x2, y2] normalized bounding box, optional"
+            }
+          }
+        },
+        "pir": {
+          "type": "object",
+          "properties": {
+            "triggered": { "type": "boolean" }
+          }
+        },
+        "geophone": {
+          "type": "object",
+          "properties": {
+            "triggered": { "type": "boolean" },
+            "vibration_intensity": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "description": "Normalized vibration magnitude, used as a large-animal cue"
+            }
+          }
+        }
+      }
+    },
+    "position": {
+      "type": "string",
+      "enum": ["on_track", "approaching", "near_track", "unknown"],
+      "description": "Fused estimate of where the animal is relative to the rail, derived on-node or on-server from bbox position + PIR zone"
+    },
+    "distance_from_rail_m": {
+      "type": "number",
+      "description": "Estimated lateral distance from the nearest rail, in meters"
+    },
+    "animal_count": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 1,
+      "description": "Number of animals detected in this event (herd crossings matter for priority)"
+    }
+  }
+}

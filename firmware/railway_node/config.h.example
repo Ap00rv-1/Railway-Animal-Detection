@@ -1,0 +1,17 @@
+// Copy this file to config.h before compiling (config.h is where your real
+// WiFi password lives — keep it out of anything you commit/share).
+
+#ifndef CONFIG_H
+#define CONFIG_H
+
+#define WIFI_SSID     "your_wifi_name"
+#define WIFI_PASSWORD "your_wifi_password"
+
+// Your laptop's LAN IP from `ipconfig`/`ifconfig`, same one you used for the dashboards
+#define SERVER_HOST   "192.168.1.42"
+#define SERVER_PORT   8000
+
+#define NODE_ID       "NODE-01"
+#define LOCATION_KM   241.2
+
+#endif

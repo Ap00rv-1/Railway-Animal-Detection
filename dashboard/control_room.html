@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Track Watch — Control Room</title>
+<style>
+  :root {
+    --bg: #0b0e11;
+    --panel: #12161a;
+    --line: #232830;
+    --ink: #eceae2;
+    --ink-dim: #8a9099;
+    --red: #d81e05;
+    --yellow: #f2a900;
+    --green: #1fa24a;
+    --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    --sans: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); min-height: 100vh;
+  }
+  header {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 20px 28px; border-bottom: 1px solid var(--line);
+  }
+  header h1 {
+    font-size: 15px; letter-spacing: 0.14em; text-transform: uppercase;
+    margin: 0; color: var(--ink-dim); font-weight: 700;
+  }
+  header .badge {
+    font-family: var(--mono); font-size: 12px; color: var(--ink-dim);
+  }
+  header .badge .dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--green); margin-right:6px; }
+  header .badge .dot.offline { background: var(--red); }
+
+  main {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    gap: 20px;
+    padding: 20px 28px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 16px 18px;
+  }
+  .panel h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em;
+    color: var(--ink-dim); margin: 0 0 12px;
+  }
+
+  #node-list { display: flex; flex-direction: column; gap: 8px; }
+  .node-row {
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--mono); font-size: 12.5px;
+    padding: 8px 10px; border-radius: 6px; background: var(--bg);
+    border: 1px solid var(--line);
+  }
+  .node-row .sw { width: 9px; height: 9px; border-radius: 50%; }
+  .node-row.red .sw { background: var(--red); box-shadow: 0 0 8px var(--red); }
+  .node-row.yellow .sw { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
+  .node-row.green .sw { background: var(--green); }
+  .node-row.stale .sw { background: #444; }
+  .node-row .label { display:flex; align-items:center; gap:8px; }
+
+  #stats-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+  .stat-row { display:flex; justify-content:space-between; font-family: var(--mono); font-size: 12px; color: var(--ink-dim); }
+  .stat-row b { color: var(--ink); }
+
+  table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12.5px; }
+  thead th {
+    text-align: left; padding: 8px 10px; color: var(--ink-dim);
+    text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.08em;
+    border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--panel);
+  }
+  tbody td { padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  tbody tr:hover { background: rgba(255,255,255,0.02); }
+  .pill { display:inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10.5px; font-weight: 700; }
+  .pill.RED { background: rgba(216,30,5,0.18); color: #ff6a4d; }
+  .pill.YELLOW { background: rgba(242,169,0,0.18); color: #ffcb52; }
+  .pill.GREEN { background: rgba(31,162,74,0.18); color: #4ad080; }
+
+  #table-wrap { max-height: 68vh; overflow-y: auto; }
+
+  @media (max-width: 900px) {
+    main { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Track Watch — Control Room</h1>
+  <div class="badge"><span class="dot" id="conn-dot"></span><span id="conn-text">Connecting…</span></div>
+</header>
+
+<main>
+  <div style="display:flex; flex-direction:column; gap:20px;">
+    <div class="panel">
+      <h2>Node status</h2>
+      <div id="node-list"><div style="color:var(--ink-dim); font-family:var(--mono); font-size:12px;">Waiting for data…</div></div>
+    </div>
+    <div class="panel">
+      <h2>Today — detections by node/species</h2>
+      <div id="stats-list"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Live &amp; historical event log</h2>
+    <div id="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th><th>Node</th><th>KM</th><th>Animal</th><th>Count</th>
+            <th>Position</th><th>Severity</th><th>Score</th>
+          </tr>
+        </thead>
+        <tbody id="event-body"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<script>
+  const API_BASE = `http://${location.hostname}:8000`;
+  const WS_URL = `ws://${location.hostname}:8000/ws/control`;
+
+  const nodeList = document.getElementById('node-list');
+  const statsList = document.getElementById('stats-list');
+  const eventBody = document.getElementById('event-body');
+  const connDot = document.getElementById('conn-dot');
+  const connText = document.getElementById('conn-text');
+
+  const nodeState = {}; // node_id -> latest event
+
+  function fmtTime(iso) {
+    return new Date(iso).toLocaleTimeString('en-IN', { hour12: false });
+  }
+
+  function renderNodeList() {
+    const rows = Object.values(nodeState).sort((a,b) => a.node_id.localeCompare(b.node_id));
+    if (!rows.length) return;
+    nodeList.innerHTML = rows.map(e => {
+      const age = (Date.now() - new Date(e.received_at || e.timestamp)) / 1000;
+      const stale = age > 30;
+      const cls = stale ? 'stale' : e.severity_label.toLowerCase();
+      return `<div class="node-row ${cls}">
+        <span class="label"><span class="sw"></span>${e.node_id} · KM ${e.location_km}</span>
+        <span>${stale ? 'STALE' : e.severity_label}</span>
+      </div>`;
+    }).join('');
+  }
+
+  function prependEventRow(e) {
+    const tr = document.createElement('tr');
+    const animal = e.sensors?.camera?.animal_type || '—';
+    tr.innerHTML = `
+      <td>${fmtTime(e.timestamp)}</td>
+      <td>${e.node_id}</td>
+      <td>${e.location_km}</td>
+      <td>${animal}</td>
+      <td>${e.animal_count ?? 1}</td>
+      <td>${e.position}</td>
+      <td><span class="pill ${e.severity_label}">${e.severity_label}</span></td>
+      <td>${e.severity_score}</td>
+    `;
+    eventBody.prepend(tr);
+    // cap rendered rows so the DOM doesn't grow unbounded during a long demo
+    while (eventBody.children.length > 300) eventBody.removeChild(eventBody.lastChild);
+  }
+
+  async function loadInitial() {
+    try {
+      const recent = await fetch(`${API_BASE}/api/v1/events/recent?limit=100`).then(r => r.json());
+      recent.forEach(e => {
+        // events/recent rows come from the DB as flat dicts, adapt shape
+        const adapted = {
+          node_id: e.node_id, location_km: e.location_km, timestamp: e.timestamp,
+          animal_count: e.animal_count, position: e.position,
+          severity_label: e.severity_label, severity_score: e.severity_score,
+          sensors: { camera: { animal_type: e.animal_type } },
+          received_at: e.received_at,
+          event_type: e.event_type,
+        };
+        prependEventRow(adapted);
+        if (e.event_type === 'detection') {
+          if (!nodeState[e.node_id] || new Date(e.timestamp) > new Date(nodeState[e.node_id].timestamp)) {
+            nodeState[e.node_id] = adapted;
+          }
+        }
+      });
+      renderNodeList();
+
+      const stats = await fetch(`${API_BASE}/api/v1/stats/daily`).then(r => r.json());
+      statsList.innerHTML = stats.length
+        ? stats.map(s => `<div class="stat-row"><span>${s.node_id} · ${s.animal_type || 'unknown'}</span><b>${s.count}</b></div>`).join('')
+        : `<div style="color:var(--ink-dim); font-family:var(--mono); font-size:12px;">No detections yet today.</div>`;
+    } catch (err) {
+      console.error('Failed to load initial data', err);
+    }
+  }
+
+  let socket;
+  function connect() {
+    socket = new WebSocket(WS_URL);
+    socket.onopen = () => { connDot.classList.remove('offline'); connText.textContent = 'Live'; };
+    socket.onclose = () => { connDot.classList.add('offline'); connText.textContent = 'Reconnecting…'; setTimeout(connect, 2000); };
+    socket.onerror = () => socket.close();
+    socket.onmessage = (msg) => {
+      const data = JSON.parse(msg.data);
+      if (data.type === 'new_event') {
+        const e = data.event;
+        prependEventRow(e);
+        if (e.event_type === 'detection') {
+          nodeState[e.node_id] = e;
+          renderNodeList();
+        }
+      }
+    };
+  }
+
+  loadInitial();
+  connect();
+  setInterval(() => { if (socket && socket.readyState === 1) socket.send('ping'); }, 15000);
+</script>
+</body>
+</html>

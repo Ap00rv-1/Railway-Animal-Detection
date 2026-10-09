@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Track Watch — Driver Display</title>
+<style>
+  :root {
+    --bg: #0a0c0e;
+    --panel: #121417;
+    --panel-line: #24282c;
+    --card: #1a1d21;
+    --ink: #f2f0e8;
+    --ink-dim: #82898f;
+    --ink-faint: #4c5257;
+
+    --red: #ff3b30;
+    --red-dim: #3a0f0c;
+    --yellow: #ffcc33;
+    --yellow-dim: #3a3009;
+    --green: #33e05a;
+    --green-dim: #0b2f14;
+
+    --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    --sans: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg);
+    font-family: var(--sans);
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  #app {
+    height: 100vh; width: 100vw;
+    display: flex; flex-direction: column;
+  }
+
+  /* ---- Top status bar ---- */
+  #topbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 24px;
+    font-family: var(--mono); font-size: 13px; letter-spacing: 0.08em;
+    color: var(--ink-dim);
+    border-bottom: 1px solid var(--panel-line);
+    flex-shrink: 0;
+  }
+  #topbar .dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green); margin-right: 8px; vertical-align: middle;
+  }
+  #topbar .dot.offline { background: var(--red); }
+  #clock { font-variant-numeric: tabular-nums; }
+
+  /* ---- Center stage ---- */
+  #stage {
+    flex: 1;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 22px;
+    padding: 20px;
+  }
+
+  #headline {
+    font-family: var(--sans); font-weight: 800;
+    font-size: clamp(26px, 5vw, 44px);
+    letter-spacing: 0.03em;
+    color: var(--ink);
+    text-align: center;
+  }
+  #headline.RED { color: var(--red); }
+  #headline.YELLOW { color: var(--yellow); }
+  #headline.GREEN { color: var(--green); }
+
+  /* ---- The panel: lamps + action cards ---- */
+  #panel {
+    background: linear-gradient(180deg, var(--panel), #0d0f11 88%);
+    border: 1px solid var(--panel-line);
+    border-radius: 22px;
+    padding: 34px clamp(20px, 4vw, 44px) 26px;
+    width: min(760px, 94vw);
+    position: relative;
+    overflow: hidden;
+  }
+  /* ambient glow bleeding up from the bottom, colored to match state */
+  #panel::after {
+    content: '';
+    position: absolute; left: 0; right: 0; bottom: 0; height: 90px;
+    background: radial-gradient(ellipse at center, var(--glow-color, transparent) 0%, transparent 70%);
+    opacity: 0.35;
+    pointer-events: none;
+    transition: background 0.4s ease;
+  }
+
+  #lamps {
+    display: flex; justify-content: center; align-items: center;
+    gap: clamp(18px, 4vw, 40px);
+    margin-bottom: 30px;
+  }
+  .lamp {
+    width: clamp(70px, 12vw, 108px);
+    height: clamp(70px, 12vw, 108px);
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #26292d, #101214);
+    border: 1px solid #2c3034;
+    transition: all 0.35s ease;
+  }
+  .lamp.lit-red { background: var(--red); box-shadow: 0 0 42px 12px rgba(255,59,48,0.65); transform: scale(1.06); }
+  .lamp.lit-yellow { background: var(--yellow); box-shadow: 0 0 42px 12px rgba(255,204,51,0.6); transform: scale(1.06); }
+  .lamp.lit-green { background: var(--green); box-shadow: 0 0 42px 12px rgba(51,224,90,0.6); transform: scale(1.06); }
+  .lamp.lit-red.pulse { animation: pulse 0.9s infinite; }
+  .card.pulse { animation: pulse 0.9s infinite; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.55; }
+  }
+
+  #cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: clamp(10px, 2vw, 16px);
+  }
+  .card {
+    background: var(--card);
+    border: 2px solid var(--panel-line);
+    border-radius: 14px;
+    padding: clamp(14px, 2.4vw, 20px) 10px;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    transition: all 0.3s ease;
+  }
+  .card .icon { font-size: clamp(22px, 3.4vw, 30px); opacity: 0.55; filter: grayscale(1); transition: all 0.3s ease; }
+  .card .label {
+    font-family: var(--sans); font-weight: 700;
+    font-size: clamp(11px, 1.6vw, 14px);
+    letter-spacing: 0.08em;
+    color: var(--ink-faint);
+    transition: color 0.3s ease;
+  }
+  .card.active .icon { opacity: 1; filter: grayscale(0); }
+  .card.active.c-red { border-color: var(--red); box-shadow: 0 0 24px rgba(255,59,48,0.35); }
+  .card.active.c-red .label { color: var(--red); }
+  .card.active.c-yellow { border-color: var(--yellow); box-shadow: 0 0 24px rgba(255,204,51,0.35); }
+  .card.active.c-yellow .label { color: var(--yellow); }
+
+  /* ---- Context line below the panel ---- */
+  #context {
+    font-family: var(--mono);
+    font-size: clamp(20px, 3.4vw, 30px);
+    color: var(--ink-dim);
+    text-align: center;
+    letter-spacing: 0.02em;
+    max-width: 700px;
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+  }
+  #context .node-tag { font-size: clamp(13px, 2vw, 16px); color: var(--ink-faint); }
+
+  /* ---- Secondary alerts strip ---- */
+  #secondary {
+    flex-shrink: 0; display: flex; gap: 10px; padding: 12px 20px;
+    overflow-x: auto; border-top: 1px solid var(--panel-line); background: var(--panel);
+  }
+  #secondary:empty { display: none; }
+  .chip {
+    flex-shrink: 0; display: flex; align-items: center; gap: 8px;
+    padding: 7px 13px; border-radius: 8px; background: var(--bg);
+    border: 1px solid var(--panel-line);
+    font-family: var(--mono); font-size: 12.5px; color: var(--ink-dim); white-space: nowrap;
+  }
+  .chip .swatch { width: 8px; height: 8px; border-radius: 50%; }
+  .chip.red .swatch { background: var(--red); }
+  .chip.yellow .swatch { background: var(--yellow); }
+</style>
+</head>
+<body>
+  <div id="app">
+    <div id="topbar">
+      <div><span class="dot" id="conn-dot"></span><span id="conn-text">CONNECTING…</span></div>
+      <div id="clock">--:--:--</div>
+    </div>
+
+    <div id="stage">
+      <div id="headline" class="GREEN">TRACK CLEAR</div>
+
+      <div id="panel">
+        <div id="lamps">
+          <div class="lamp" id="lamp-red"></div>
+          <div class="lamp" id="lamp-yellow"></div>
+          <div class="lamp" id="lamp-green"></div>
+        </div>
+        <div id="cards">
+          <div class="card" id="card-slow">
+            <div class="icon">🐢</div>
+            <div class="label">SLOW</div>
+          </div>
+          <div class="card" id="card-brake">
+            <div class="icon">🚫</div>
+            <div class="label">BRAKE</div>
+          </div>
+          <div class="card" id="card-horn">
+            <div class="icon">🔔</div>
+            <div class="label">HORN</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="context">—</div>
+    </div>
+
+    <div id="secondary"></div>
+  </div>
+
+<script>
+  const WS_URL = `ws://${location.hostname}:8000/ws/driver`;
+
+  const el = {
+    panel: document.getElementById('panel'),
+    headline: document.getElementById('headline'),
+    context: document.getElementById('context'),
+    secondary: document.getElementById('secondary'),
+    connDot: document.getElementById('conn-dot'),
+    connText: document.getElementById('conn-text'),
+    clock: document.getElementById('clock'),
+    lampRed: document.getElementById('lamp-red'),
+    lampYellow: document.getElementById('lamp-yellow'),
+    lampGreen: document.getElementById('lamp-green'),
+    cardSlow: document.getElementById('card-slow'),
+    cardBrake: document.getElementById('card-brake'),
+    cardHorn: document.getElementById('card-horn'),
+  };
+
+  function setClock() {
+    el.clock.textContent = new Date().toLocaleTimeString('en-IN', { hour12: false });
+  }
+  setInterval(setClock, 1000);
+  setClock();
+
+  const GLOW_COLORS = { RED: '#ff3b30', YELLOW: '#ffcc33', GREEN: '#33e05a' };
+  const HEADLINE_WORDS = { RED: 'CRITICAL', YELLOW: 'CAUTION', GREEN: 'TRACK CLEAR' };
+  const ANIMAL_EMOJI = {
+    elephant: '🐘', cattle: '🐄', buffalo: '🐃', camel: '🐫', horse: '🐎',
+    nilgai: '🦌', deer: '🦌', boar: '🐗', dog: '🐕', goat: '🐐', sheep: '🐑',
+  };
+
+  function applyState(label) {
+    // Blink only the truly critical case: RED means "only horn/siren can
+    // help" per spec, so lamp + horn card blink together to grab attention
+    // immediately -- everything else is a steady glow, not a blink.
+    const redBlink = label === 'RED' ? ' pulse' : '';
+
+    el.lampRed.className = 'lamp' + (label === 'RED' ? ' lit-red' + redBlink : '');
+    el.lampYellow.className = 'lamp' + (label === 'YELLOW' ? ' lit-yellow' : '');
+    el.lampGreen.className = 'lamp' + (label === 'GREEN' ? ' lit-green' : '');
+
+    // Cards: RED -> HORN only (blinking), YELLOW -> SLOW + BRAKE (steady), GREEN -> none
+    el.cardSlow.className = 'card' + (label === 'YELLOW' ? ' active c-yellow' : '');
+    el.cardBrake.className = 'card' + (label === 'YELLOW' ? ' active c-yellow' : '');
+    el.cardHorn.className = 'card' + (label === 'RED' ? ' active c-red' + redBlink : '');
+
+    el.panel.style.setProperty('--glow-color', GLOW_COLORS[label] || 'transparent');
+    el.headline.className = label;
+    el.headline.textContent = HEADLINE_WORDS[label] || label;
+  }
+
+  function renderTopAlert(alert) {
+    if (!alert) {
+      applyState('GREEN');
+      el.context.innerHTML = '<span style="font-size:1.4em">✅</span>';
+      return;
+    }
+    const label = alert.severity_label;
+    applyState(label);
+
+    const animalType = alert.sensors?.camera?.animal_type || '';
+    const emoji = ANIMAL_EMOJI[animalType.toLowerCase()] || '🐾';
+    const count = alert.animal_count > 1 ? `×${alert.animal_count}` : '';
+    el.context.innerHTML =
+      `<span style="font-size:1.6em">${emoji}${count}</span>` +
+      `<span class="node-tag">NODE ${alert.node_id}</span>`;
+  }
+
+  function renderSecondary(list) {
+    el.secondary.innerHTML = '';
+    (list || []).forEach(e => {
+      const chip = document.createElement('div');
+      chip.className = 'chip ' + e.severity_label.toLowerCase();
+      const animal = e.sensors?.camera?.animal_type || 'animal';
+      chip.innerHTML = `<span class="swatch"></span>${animal.toUpperCase()} · NODE ${e.node_id} · KM ${e.location_km}`;
+      el.secondary.appendChild(chip);
+    });
+  }
+
+  let socket;
+  let reconnectTimer;
+
+  function connect() {
+    socket = new WebSocket(WS_URL);
+
+    socket.onopen = () => {
+      el.connDot.classList.remove('offline');
+      el.connText.textContent = 'LIVE';
+      clearTimeout(reconnectTimer);
+    };
+
+    socket.onclose = () => {
+      el.connDot.classList.add('offline');
+      el.connText.textContent = 'RECONNECTING…';
+      reconnectTimer = setTimeout(connect, 2000);
+    };
+
+    socket.onerror = () => socket.close();
+
+    socket.onmessage = (msg) => {
+      const data = JSON.parse(msg.data);
+      if (data.type === 'alert_update') {
+        renderTopAlert(data.top_alert);
+        renderSecondary(data.secondary_alerts);
+      }
+    };
+  }
+
+  // Fetch current state on load -- without this, a dashboard opened after an
+  // event already fired would wrongly show TRACK CLEAR until the next event.
+  async function loadInitialState() {
+    try {
+      const API_BASE = `http://${location.hostname}:8000`;
+      const active = await fetch(`${API_BASE}/api/v1/events/active`).then(r => r.json());
+      renderTopAlert(active[0] || null);
+      renderSecondary(active.slice(1, 5));
+    } catch (err) {
+      console.error('Failed to load initial state', err);
+    }
+  }
+
+  loadInitialState();
+  connect();
+  setInterval(() => { if (socket && socket.readyState === 1) socket.send('ping'); }, 15000);
+</script>
+</body>
+</html>
