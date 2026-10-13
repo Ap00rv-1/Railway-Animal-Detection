@@ -1,0 +1,22 @@
+# Place in the project ROOT.
+# Local test:  docker compose up --build
+# On EC2:      docker compose up -d --build
+services:
+  trackwatch:
+    build: .
+    ports:
+      - "8000:8000"
+    # .env is read at runtime only; it is never copied into the image.
+    # On EC2 run `touch .env` first if you don't have one (Phase 1 needs no secrets).
+    env_file: .env
+    environment:
+      SQLITE_PATH: /data/control_room.db
+    volumes:
+      # persistent SQLite storage
+      - trackwatch_data:/data
+      # drop wildlife_yolov8n.pt into ./server/models on the host - no rebuild needed
+      - ./server/models:/app/server/models:ro
+    restart: unless-stopped
+
+volumes:
+  trackwatch_data:
