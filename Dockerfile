@@ -24,9 +24,6 @@ COPY server/ server/
 COPY dashboard/ dashboard/
 COPY schema/ schema/
 
-# SQLite file lives on a Docker volume so data survives container restarts
-ENV SQLITE_PATH=/data/control_room.db
-RUN mkdir -p /data
 
 # Your imports are flat (from models import ...), so run from inside server/
 WORKDIR /app/server

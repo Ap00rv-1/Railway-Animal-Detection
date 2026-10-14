@@ -1,22 +1,33 @@
-# Place in the project ROOT.
-# Local test:  docker compose up --build
-# On EC2:      docker compose up -d --build
 services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
   trackwatch:
     build: .
     ports:
       - "8000:8000"
-    # .env is read at runtime only; it is never copied into the image.
-    # On EC2 run `touch .env` first if you don't have one (Phase 1 needs no secrets).
     env_file: .env
     environment:
-      SQLITE_PATH: /data/control_room.db
+      DB_HOST: db        # overrides DB_HOST=localhost from your .env
+      DB_PORT: "5432"
+    depends_on:
+      db:
+        condition: service_healthy
     volumes:
-      # persistent SQLite storage
-      - trackwatch_data:/data
-      # drop wildlife_yolov8n.pt into ./server/models on the host - no rebuild needed
       - ./server/models:/app/server/models:ro
     restart: unless-stopped
 
 volumes:
-  trackwatch_data:
+  pgdata:

@@ -12,7 +12,7 @@ dashboard in real time.
 [Node 1] ─┐
 [Node 2] ─┼─ HTTP POST /api/v1/detect ─> [FastAPI server] ─ WebSocket ─> [Driver dashboard]
 [Node N] ─┘                                    │
-                                                ├─ SQLite ──────────────> [Control room dashboard]
+                                                ├─ PostgreSQL ──────────> [Control room dashboard]
                                                 └─ priority.py (scoring + ranking)
 ```
 
@@ -22,8 +22,8 @@ dashboard in real time.
 - **server/priority.py** — the scoring logic (position on track, animal
   weight class, sensor agreement, confidence, herd size) → RED/YELLOW/GREEN,
   plus the multi-node ranking used to pick what the driver sees first.
-- **server/database.py** — SQLite storage for the control room's historical
-  log and future path-tracing.
+- **server/database_pg.py** — PostgreSQL storage (asyncpg connection pool)
+  for the control room's historical log and future path-tracing.
 - **server/models.py** — Pydantic schema, mirrors `schema/detection_event_schema.json`.
 - **dashboard/driver.html** — full-screen, high-contrast signal display for
   the cab. Big color state (green/yellow/red), plain-language action text,
@@ -48,11 +48,22 @@ dashboard in real time.
    - Windows: `ipconfig` → look for IPv4 Address
    - Mac/Linux: `ifconfig` or `ip addr` → look for something like `192.168.x.x`
 
+**Set up PostgreSQL.** Create a database (e.g. `trackwatch`) and a `.env`
+file in `server/`:
+
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=trackwatch
+DB_USER=...
+DB_PASSWORD=...
+
+The `events` table and indexes are created automatically on server startup.
+
 3. **Start the server:**
 
    ```bash
    cd server
-   uvicorn main:app --host 0.0.0.0 --port 8000
+   python -m uvicorn main:app --host 0.0.0.0 --port 8000
    ```
 
 4. **Open the dashboards** from any device on the same WiFi (your phone can

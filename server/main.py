@@ -25,7 +25,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 import database_pg
-import database
 import inference
 import priority
 from models import (
@@ -88,10 +87,12 @@ manager = ConnectionManager()
 
 @app.on_event("startup")
 async def startup():
-    database.init_db()
     app.state.db_pool = await database_pg.init_pool()
     await database_pg.init_schema(app.state.db_pool) 
 
+@app.on_event("shutdown")
+async def shutdown():
+    await app.state.db_pool.close()
 
 # ---------------------------------------------------------------------------
 # Ingestion
@@ -107,7 +108,8 @@ async def _process_event(event_in: DetectionEventIn) -> DetectionEventOut:
     event = priority.enrich(event_in)
 
     latest_by_node[event.node_id] = event
-    database.save_event(event)
+
+    await database_pg.save_event(app.state.db_pool, event)
 
     active_ranked = priority.rank_active_events(list(latest_by_node.values()))
     top_alert = active_ranked[0] if active_ranked else None
@@ -228,24 +230,17 @@ async def pg_test(conn = Depends(database_pg.get_db_connection)):
 
 
 @app.get("/api/v1/events/recent")
-def recent_events(limit: int = 200, node_id: str = None):
-    return database.get_recent_events(limit=limit, node_id=node_id)
-
-
-@app.get("/api/v1/events/active")
-def active_events():
-    active_ranked = priority.rank_active_events(list(latest_by_node.values()))
-    return [e.model_dump(mode="json") for e in active_ranked]
-
+async def recent_events(limit: int = 200, node_id: str = None):
+    return await database_pg.get_recent_events(app.state.db_pool, limit=limit, node_id=node_id)
 
 @app.get("/api/v1/nodes/{node_id}/history")
-def node_history(node_id: str, limit: int = 500):
-    return database.get_node_history(node_id, limit=limit)
-
+async def node_history(node_id: str, limit: int = 500):
+    return await database_pg.get_node_history(app.state.db_pool, node_id, limit=limit)
 
 @app.get("/api/v1/stats/daily")
-def daily_stats():
-    return database.get_daily_stats()
+async def daily_stats():
+    return await database_pg.get_daily_stats(app.state.db_pool)
+
 
 
 @app.get("/api/v1/health")

@@ -46,6 +46,40 @@ async def init_pool():
         max_size=5,
     )
 
+async def get_recent_events(pool, limit: int = 200, node_id: str | None = None):
+    async with pool.acquire() as conn:
+        if node_id:
+            rows = await conn.fetch(
+                "SELECT * FROM events WHERE node_id = $1 ORDER BY timestamp DESC LIMIT $2",
+                node_id, limit)
+        else:
+            rows = await conn.fetch(
+                "SELECT * FROM events ORDER BY timestamp DESC LIMIT $1", limit)
+    return [dict(r) for r in rows]
+
+
+async def get_node_history(pool, node_id: str, limit: int = 500):
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            "SELECT * FROM events WHERE node_id = $1 ORDER BY timestamp ASC LIMIT $2",
+            node_id, limit)
+    return [dict(r) for r in rows]
+
+
+async def get_daily_stats(pool):
+    async with pool.acquire() as conn:
+        rows = await conn.fetch("""
+            SELECT node_id, animal_type, COUNT(*) AS count
+            FROM events
+            WHERE event_type = 'detection'
+              AND (timestamp AT TIME ZONE 'Asia/Kolkata')::date
+                  = (now() AT TIME ZONE 'Asia/Kolkata')::date
+            GROUP BY node_id, animal_type
+            ORDER BY count DESC
+        """)
+    return [dict(r) for r in rows]
+
+
 async def test_connection():
     _pool = await init_pool()
     async with _pool.acquire() as conn:
