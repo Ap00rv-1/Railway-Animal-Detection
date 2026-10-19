@@ -17,3 +17,45 @@ jobs:
       - run: ruff check server/ tests/
       - run: pytest -v
       - run: docker build -t trackwatch .
+    
+  deploy:
+    needs: ci
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: ap-southeast-2
+    steps:
+      - name: Find this runner's public IP
+        id: ip
+        run: echo "addr=$(curl -s https://checkip.amazonaws.com)" >> "$GITHUB_OUTPUT"
+
+      - name: Open SSH for this runner only
+        run: |
+          aws ec2 authorize-security-group-ingress \
+            --group-id ${{ secrets.SG_ID }} \
+            --protocol tcp --port 22 \
+            --cidr ${{ steps.ip.outputs.addr }}/32
+
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/Railway-Animal-Detection
+            git pull origin main
+            docker compose up -d --build
+            sleep 15
+            curl -f http://localhost:8000/api/v1/health
+
+      - name: Close SSH again
+        if: always()
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --group-id ${{ secrets.SG_ID }} \
+            --protocol tcp --port 22 \
+            --cidr ${{ steps.ip.outputs.addr }}/32
