@@ -20,7 +20,16 @@ as something to fix before any real deployment.
 from datetime import datetime, timezone
 from typing import Dict, List
 
-from fastapi import Depends, FastAPI, WebSocket, WebSocketDisconnect, HTTPException, File, Form, UploadFile
+from fastapi import (
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 

@@ -8,7 +8,7 @@ the FastAPI side and auto-generated OpenAPI docs at /docs.
 
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Optional, List
+from typing import List, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
