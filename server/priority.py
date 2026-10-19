@@ -16,7 +16,13 @@ data. Nothing else in the codebase needs to change when you retune them.
 from datetime import datetime, timezone
 from typing import List, Optional
 
-from models import DetectionEventIn, DetectionEventOut, Position, SeverityLabel, EventType
+from models import (
+    DetectionEventIn,
+    DetectionEventOut,
+    EventType,
+    Position,
+    SeverityLabel,
+)
 
 # ---------------------------------------------------------------------------
 # Tunable weights

@@ -35,7 +35,9 @@ def _get_model():
                 f"Model weights not found at {MODEL_PATH}. "
                 "Copy your trained best.pt there -- see server/models/README.md."
             )
-        from ultralytics import YOLO  # imported lazily: heavy import, only pay for it if needed
+        from ultralytics import (
+            YOLO,  # imported lazily: heavy import, only pay for it if needed
+        )
         _model = YOLO(str(MODEL_PATH))
     return _model
 

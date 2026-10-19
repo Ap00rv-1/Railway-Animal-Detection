@@ -1,9 +1,12 @@
-from dotenv import load_dotenv
-import os   
-import asyncpg
 import asyncio
+import os
+
+import asyncpg
+from dotenv import load_dotenv
 from fastapi import Request
+
 from models import DetectionEventOut
+
 load_dotenv()
 
 async def init_schema(pool):
