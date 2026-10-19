@@ -8,3 +8,4 @@ ultralytics
 torchvision
 asyncpg
 python-dotenv
+pytest
